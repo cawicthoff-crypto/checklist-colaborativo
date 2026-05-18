@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checklist Colaborativo com Firebase</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f7f5ef;
+            color: #2b2a26;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #86c79a 0%, #6ab87a 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            padding: 20px;
+            border-bottom: 1px solid #e8e6e1;
+            flex-wrap: wrap;
+        }
+
+        .controls input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px;
+            border: 1px solid #d4d0c5;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .controls button {
+            padding: 12px 24px;
+            background: #86c79a;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .controls button:hover {
+            background: #6ab87a;
+        }
+
+        .status {
+            padding: 10px 20px;
+            font-size: 12px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #e8e6e1;
+        }
+
+        .status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status.disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .items-container {
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px;
+            background: #fafaf8;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #86c79a;
+            transition: all 0.2s;
+        }
+
+        .item.completed {
+            opacity: 0.6;
+            background: #f0f0f0;
+        }
+
+        .item.completed .item-text {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .item input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #86c79a;
+        }
+
+        .item-text {
+            flex: 1;
+            padding: 0 10px;
+        }
+
+        .item-user {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            color: white;
+            white-space: nowrap;
+        }
+
+        .item-delete {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        .item-delete:hover {
+            background: #ff5252;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            padding: 20px;
+            border-top: 1px solid #e8e6e1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            background: #f9f9f7;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #86c79a;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .modal-content label {
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        .modal-content label span {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d4d0c5;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .color-picker {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: border 0.2s;
+        }
+
+        .color-option.selected {
+            border-color: #333;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .modal-buttons button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .modal-buttons button.primary {
+            background: #86c79a;
+            color: white;
+        }
+
+        .modal-buttons button.secondary {
+            background: #e8e6e1;
+            color: #2b2a26;
+        }
+
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header-buttons button {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .header-buttons button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-buttons">
+                <button onclick="showProfileModal()">👤 Meu Perfil</button>
+            </div>
+            <h1>✓ Checklist Colaborativo</h1>
+            <p>Edite em tempo real com sua equipe</p>
+        </div>
+
+        <div id="status" class="status disconnected">
+            Conectando ao Firebase...
+        </div>
+
+        <div class="controls">
+            <input type="text" id="itemInput" placeholder="Digite um novo item..." onkeypress="if(event.key==='Enter') addItem()">
+            <button onclick="addItem()">+ Adicionar</button>
+        </div>
+
+        <div class="items-container" id="itemsContainer">
+            <div class="empty-state">
+                <h3>Sua lista está vazia</h3>
+                <p>Comece adicionando o primeiro item!</p>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat">
+                <div class="stat-value" id="totalItems">0</div>
+                <div class="stat-label">Total de Itens</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="completedItems">0</div>
+                <div class="stat-label">Concluídos</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="percentageComplete">0%</div>
+                <div class="stat-label">Progresso</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Perfil -->
+    <div class="modal" id="profileModal">
+        <div class="modal-content">
+            <h2>Meu Perfil</h2>
+            <label>
+                <span>Seu Nome:</span>
+                <input type="text" id="userName" placeholder="Digite seu nome">
+            </label>
+            <label>
+                <span>Sua Cor:</span>
+                <div class="color-picker" id="colorPicker">
+                    <div class="color-option" style="background: #86c79a;" onclick="selectColor(this, '#86c79a')"></div>
+                    <div class="color-option" style="background: #f94144;" onclick="selectColor(this, '#f94144')"></div>
+                    <div class="color-option" style="background: #f3722c;" onclick="selectColor(this, '#f3722c')"></div>
+                    <div class="color-option" style="background: #fcbf49;" onclick="selectColor(this, '#fcbf49')"></div>
+                    <div class="color-option" style="background: #06aed5;" onclick="selectColor(this, '#06aed5')"></div>
+                    <div class="color-option" style="background: #118ab2;" onclick="selectColor(this, '#118ab2')"></div>
+                </div>
+            </label>
+            <div class="modal-buttons">
+                <button class="primary" onclick="saveProfile()">Salvar Perfil</button>
+                <button class="secondary" onclick="closeProfileModal()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDPgdqhCpWUDVkzktngYv93FFbPE8t45zA",
+            authDomain: "checklist-a7f73.firebaseapp.com",
+            databaseURL: "https://checklist-a7f73-default-rtdb.firebaseio.com",
+            projectId: "checklist-a7f73",
+            storageBucket: "checklist-a7f73.firebasestorage.app",
+            messagingSenderId: "1088078166840",
+            appId: "1:1088078166840:web:d18bd0e4b23ae748bc1cfcd"
+        };
+
+        const app = {
+            db: null,
+            selectedColor: '#86c79a',
+
+            init() {
+                this.loadUserData();
+                this.connectFirebase();
+            },
+
+            loadUserData() {
+                const stored = localStorage.getItem('checklistUser');
+                if (stored) {
+                    const user = JSON.parse(stored);
+                    document.getElementById('userName').value = user.name || '';
+                    this.selectedColor = user.color || '#86c79a';
+                    const colorOptions = document.querySelectorAll('.color-option');
+                    colorOptions.forEach(opt => {
+                        opt.classList.remove('selected');
+                        if (opt.style.background === this.selectedColor) {
+                            opt.classList.add('selected');
+                        }
+                    });
+                } else {
+                    this.selectFirstColor();
+                }
+            },
+
+            selectFirstColor() {
+                const firstColor = document.querySelector('.color-option');
+                if (firstColor) {
+                    firstColor.classList.add('selected');
+                    this.selectedColor = firstColor.style.background;
+                }
+            },
+
+            async connectFirebase() {
+                try {
+                    const firebaseApp = firebase.initializeApp(firebaseConfig);
+                    this.db = firebase.database(firebaseApp);
+
+                    this.updateStatus('Conectado ao Firebase ✅', true);
+                    this.setupDatabaseListeners();
+                } catch (error) {
+                    console.error('Erro ao conectar:', error);
+                    this.updateStatus('Erro ao conectar ao Firebase', false);
+                }
+            },
+
+            setupDatabaseListeners() {
+                if (!this.db) return;
+
+                this.db.ref('items').on('value', snapshot => {
+                    const items = snapshot.val() || {};
+                    this.renderItems(items);
+                });
+            },
+
+            async addItem() {
+                if (!this.db) {
+                    alert('Aguarde a conexão com Firebase...');
+                    return;
+                }
+
+                const input = document.getElementById('itemInput');
+                const text = input.value.trim();
+
+                if (!text) return;
+
+                const user = this.getCurrentUser();
+                const item = {
+                    text,
+                    completed: false,
+                    createdBy: user.name || 'Anônimo',
+                    createdByColor: user.color,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+
+                try {
+                    const newRef = this.db.ref('items').push();
+                    await newRef.set(item);
+                    input.value = '';
+                    input.focus();
+                } catch (error) {
+                    alert('Erro ao adicionar: ' + error.message);
+                }
+            },
+
+            async toggleItem(id, currentState) {
+                if (!this.db) return;
+
+                try {
+                    await this.db.ref(`items/${id}/completed`).set(!currentState);
+                } catch (error) {
+                    alert('Erro ao atualizar: ' + error.message);
+                }
+            },
+
+            async deleteItem(id) {
+                if (!this.db) return;
+
+                if (confirm('Tem certeza que deseja deletar este item?')) {
+                    try {
+                        await this.db.ref(`items/${id}`).remove();
+                    } catch (error) {
+                        alert('Erro ao deletar: ' + error.message);
+                    }
+                }
+            },
+
+            renderItems(items) {
+                const container = document.getElementById('itemsContainer');
+
+                if (!items || Object.keys(items).length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <h3>Sua lista está vazia</h3>
+                            <p>Comece adicionando o primeiro item!</p>
+                        </div>
+                    `;
+                    document.getElementById('stats').style.display = 'none';
+                    return;
+                }
+
+                let html = '';
+                let completed = 0;
+
+                Object.entries(items).forEach(([id, item]) => {
+                    if (item.completed) completed++;
+
+                    const itemClass = item.completed ? 'completed' : '';
+                    const checked = item.completed ? 'checked' : '';
+                    const color = item.createdByColor || '#86c79a';
+
+                    html += `
+                        <div class="item ${itemClass}">
+                            <input type="checkbox" ${checked} onchange="app.toggleItem('${id}', ${item.completed})">
+                            <div class="item-text">${this.escapeHtml(item.text)}</div>
+                            <div class="item-user" style="background: ${color}">${this.escapeHtml(item.createdBy)}</div>
+                            <button class="item-delete" onclick="app.deleteItem('${id}')">Deletar</button>
+                        </div>
+                    `;
+                });
+
+                container.innerHTML = html;
+
+                const total = Object.keys(items).length;
+                const percentage = Math.round((completed / total) * 100);
+
+                document.getElementById('totalItems').textContent = total;
+                document.getElementById('completedItems').textContent = completed;
+                document.getElementById('percentageComplete').textContent = percentage + '%';
+                document.getElementById('stats').style.display = 'grid';
+            },
+
+            getCurrentUser() {
+                const stored = localStorage.getItem('checklistUser');
+                if (stored) return JSON.parse(stored);
+                return { name: 'Anônimo', color: this.selectedColor };
+            },
+
+            updateStatus(message, connected) {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = 'status ' + (connected ? 'connected' : 'disconnected');
+            },
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+        };
+
+        function showProfileModal() {
+            document.getElementById('profileModal').classList.add('active');
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').classList.remove('active');
+        }
+
+        function selectColor(element, color) {
+            document.querySelectorAll('.color-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            element.classList.add('selected');
+            app.selectedColor = color;
+        }
+
+        function saveProfile() {
+            const name = document.getElementById('userName').value || 'Anônimo';
+            const color = app.selectedColor;
+
+            localStorage.setItem('checklistUser', JSON.stringify({
+                name,
+                color
+            }));
+
+            alert('Perfil salvo!');
+            closeProfileModal();
+        }
+
+        // Iniciar aplicação
+        window.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+    </script>
+</body>
+</html>
